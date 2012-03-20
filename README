@@ -1,0 +1,5 @@
+A library for import datasets from GEO into pandas dataframe
+
+Requirments:
+python
+pandas
