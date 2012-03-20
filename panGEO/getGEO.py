@@ -60,6 +60,8 @@ def parseGSE(content):
     seeks?
     """
 
+    gse = {}
+
     gse_platforms = re.compile(u'\\^PLATFORM')
     gse_samples = re.compile(u'\\^SAMPLE')
 
@@ -79,12 +81,20 @@ def parseGSE(content):
     print(gsm['starts'])
     chr_to_read = [gsm['starts'][i+1]-1 for i\
                          in range(len(gsm['starts'])-1)]
-    # Assuming the last one ends at the end of the file
-    chr_to_read.append(len(content))
+    # Assuming the last one ends at the end of the file, also -1 for EOF
+    chr_to_read.append(len(content)-1)
+    print(len(gsm['starts']))
 
     for s, e in zip(gsm['starts'], chr_to_read):
         k = content[s:e]
         re_plat_id = re.compile(u'\\!Sample_platform_id.*$', re.MULTILINE)
-        plat_id = re_plat_id.search(k).group().split(" = ")[0]
-        print(plat_id)
+        plat_id = re_plat_id.search(k).group().split(" = ")[1]
+        re_data_start = re.compile(u'_table_begin$', re.MULTILINE)
+        data_start = re_data_start.search(k).end() + 1
+        data = k[data_start:].split("\n")
+        print(data[-1])
 
+class eSet(object):
+    """ A python version of bioconductor's eset using panda's dataframes
+    """
+    pass

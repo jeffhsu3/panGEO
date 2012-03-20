@@ -1,4 +1,4 @@
-A library for import datasets from GEO into pandas dataframe
+A library for importing GEO datasets into panda dataframes
 
 Requirments:
 python
