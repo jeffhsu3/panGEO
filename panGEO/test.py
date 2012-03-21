@@ -1,3 +1,3 @@
 from getGEO import *
 
-parseGSE(loadGEO('/tmp/test.gz'))
+parseGSE('/tmp/test.gz')

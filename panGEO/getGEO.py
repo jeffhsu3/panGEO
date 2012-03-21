@@ -1,16 +1,5 @@
-import urllib2, os, gzip, re
+import urllib2, os, gzip, re, tempfile, cStringIO, StringIO, collections
 import pandas as pd
-
-class geoQuery(object):
-    base_url = 'http://eutils.ncbi.nlm.nih.gov/entrez/eutils/'
-    pass
-
-class BaseExpr(object):
-    """ Base expression type
-    """
-
-    def __init__(self):
-        pass
 
 
 def _construct_geo_ftp(geo_id):
@@ -26,9 +15,6 @@ def _construct_geo_ftp(geo_id):
         #:TODO finish this
         pass
     return(url_header)
-
-def _parse_meta_data():
-    pass
 
 
 def getGEO(geo_id, out_file='/tmp/'):
@@ -46,7 +32,6 @@ def getGEO(geo_id, out_file='/tmp/'):
     parseGSE(content)
 
 
-
 def loadGEO(GEO_file):
     """ Loads a locally downloaded GEO file
     """
@@ -55,46 +40,106 @@ def loadGEO(GEO_file):
     return(content)
 
 
-def parseGSE(content):
-    """ All in memory based right now how can we change?  Liberal use of
-    seeks?
+def parseGSM(fileobj, size, chunksize = 100000):
+    seen = 0
+    first_line = fileobj.readline()
+    seen += len(first_line)
+    acession = first_line.strip("\n").split(" = ")[1]
+    meta_data = {}
+    # This is slow
+    while True:
+        line = fileobj.readline()
+        seen += len(line)
+        if re.search(u'\\!Sample_title', line):
+            meta_data['sample'] = line.rstrip('\n').split(" = ")[1]
+        elif '!Sample_platform_id' in line:
+            meta_data['platform'] = line.rstrip('\n').split(" = ")[1]
+        else:
+            pass
+        if re.search('_table_begin', line):
+            start = fileobj.tell()
+            break
+        else: pass
+    # Get the line counts to read
+    if size:
+        data = fileobj.read(size-seen)
+    else:
+        data = fileobj.read()
+
+    nlines = data.count('\n') - 2 # Last line is the footer
+    del data
+    fileobj.seek(start)
+    data = pd.read_csv(fileobj, sep = "\t", nrows = nlines,
+                       index_col = 0)
+    new_index = pd.MultiIndex.from_tuples([(meta_data['sample'], i)\
+                                          for i in data.columns], 
+                                          names = ['sample', 'info'])
+    data.columns = new_index
+    return((data, meta_data))
+
+
+
+def parseGPL(fileobj, size, chunksize = 100000):
+    pass
+
+
+def parseGSE(fname, chunksize = 100000):
     """
+    """
+    temp = gzip.open(fname, 'rb')
+    sum_bytes = 0
+    ent_all = []
+    # A dictionary with keys being the platform and values being the gsms
+    data_list = collections.defaultdict(list)
+    data_coll = {}
+    # Go through the file getting where the file starts
+    while True:
+        content = temp.read(chunksize)
+        if content == "":
+            break
 
-    gse = {}
+        entities = re.compile(u'\\^(SAMPLE|PLATFORM)').finditer(content)
+        matches = [(i.start() + sum_bytes, i.group()) for i in entities]
+        ent_all.extend(matches)
+        sum_bytes += chunksize
 
-    gse_platforms = re.compile(u'\\^PLATFORM')
-    gse_samples = re.compile(u'\\^SAMPLE')
+    #Read till end for the last one
+    chr_to_read = [ent_all[i+1][0]-ent_all[i][0] for i\
+                         in range(len(ent_all)-1)]
+    chr_to_read.append(None)
+    print("%i entities found" % len(ent_all))
+    temp.rewind()
+
+    for i in range(len(ent_all)):
+        if ent_all[i][1] == '^PLATFORM':
+            temp.seek(ent_all[i][0])
+            parseGPL(temp, chr_to_read[i])
+        elif ent_all[i][1] == '^SAMPLE':
+            temp.seek(ent_all[i][0])
+            data, meta = parseGSM(temp, chr_to_read[i])
+            #data_list[meta['platform']].append(data)
+            data_coll[meta['platform']] = data_coll.get(meta['platform'],
+                                                        data).append(data)
+            print(data_coll[meta['platform']].columns)
 
 
-    platforms = gse_platforms.finditer(content)
-    samples = gse_samples.finditer(content)
 
-    gsm ={}
-    gsm['starts'] = []
-    gsm['gsm_id'] = []
+class GSM(object):
+    """
+    """
+    def __init__(self, datatable, meta):
+        self.data = datatable
+        self.meta = meta
 
-    samplestarts = []
-    for i in samples:
-        endline = content.find('\n', i.start())
-        gsm['starts'].append(i.start())
-        gsm['gsm_id'].append(content[i.start():endline].split(' = ')[1])
-    print(gsm['starts'])
-    chr_to_read = [gsm['starts'][i+1]-1 for i\
-                         in range(len(gsm['starts'])-1)]
-    # Assuming the last one ends at the end of the file, also -1 for EOF
-    chr_to_read.append(len(content)-1)
-    print(len(gsm['starts']))
+    def info(self):
+        pass
 
-    for s, e in zip(gsm['starts'], chr_to_read):
-        k = content[s:e]
-        re_plat_id = re.compile(u'\\!Sample_platform_id.*$', re.MULTILINE)
-        plat_id = re_plat_id.search(k).group().split(" = ")[1]
-        re_data_start = re.compile(u'_table_begin$', re.MULTILINE)
-        data_start = re_data_start.search(k).end() + 1
-        data = k[data_start:].split("\n")
-        print(data[-1])
 
 class eSet(object):
     """ A python version of bioconductor's eset using panda's dataframes
     """
-    pass
+    def __init__(self):
+        pass
+
+    def exprs(self):
+        pass
