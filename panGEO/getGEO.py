@@ -14,7 +14,16 @@ def _construct_geo_ftp(geo_id):
     elif geo_type == 'GPL':
         #:TODO finish this
         pass
+    elif geo_type == 'GSM':
+        pass
+    elif geo_type == 'GDS':
+        pass
+
     return(url_header)
+
+def _parse_meta(metainfo):
+    metainfo.split("\n")
+    pass
 
 
 def getGEO(geo_id, out_file='/tmp/'):
@@ -80,11 +89,30 @@ def parseGSM(fileobj, size, chunksize = 100000):
 
 
 def parseGPL(fileobj, size, chunksize = 100000):
-    pass
+    seen = 0
+    first_line = fileobj.readline()
+    seen += len(first_line)
+    acession = first_line.strip("\n").split(" = ")[1]
+    meta_data = {}
+    while True:
+        line = fileobj.readline()
+        seen += len(line)
+        if re.search(u'\\!Sample_title', line):
+            meta_data['sample'] = line.rstrip('\n').split(" = ")[1]
+        elif '!Sample_platform_id' in line:
+            meta_data['platform'] = line.rstrip('\n').split(" = ")[1]
+        else:
+            pass
+        if re.search('_table_begin', line):
+            start = fileobj.tell()
+            break
+        else: pass
 
 
 def parseGSE(fname, chunksize = 100000):
-    """
+    """ Parses a GSE file.  GSE will often times have data from multiple
+    platforms, so the data is returned as a dictionary with keys being the
+    GPL id and the values being dataframes of all the data from one platform.
     """
     temp = gzip.open(fname, 'rb')
     sum_bytes = 0
@@ -92,6 +120,7 @@ def parseGSE(fname, chunksize = 100000):
     # A dictionary with keys being the platform and values being the gsms
     data_list = collections.defaultdict(list)
     data_coll = {}
+    annot_coll = {}
     # Go through the file getting where the file starts
     while True:
         content = temp.read(chunksize)
@@ -107,39 +136,40 @@ def parseGSE(fname, chunksize = 100000):
     chr_to_read = [ent_all[i+1][0]-ent_all[i][0] for i\
                          in range(len(ent_all)-1)]
     chr_to_read.append(None)
-    print("%i entities found" % len(ent_all))
     temp.rewind()
 
     for i in range(len(ent_all)):
         if ent_all[i][1] == '^PLATFORM':
             temp.seek(ent_all[i][0])
-            parseGPL(temp, chr_to_read[i])
+            annot = parseGPL(temp, chr_to_read[i])
         elif ent_all[i][1] == '^SAMPLE':
             temp.seek(ent_all[i][0])
             data, meta = parseGSM(temp, chr_to_read[i])
-            #data_list[meta['platform']].append(data)
-            data_coll[meta['platform']] = data_coll.get(meta['platform'],
-                                                        data).append(data)
-            print(data_coll[meta['platform']].columns)
+            # Maybe standard doesn't require auto aligning with the index,
+            # assume all the same order?
+            # This step is also very slow
+            try:
+                data_coll[meta['platform']] =\
+                        pd.concat([data_coll[meta['platform']], data], axis=1)
+            except KeyError:
+                data_coll[meta['platform']] = data
+        else: pass
 
-
-
-class GSM(object):
-    """
-    """
-    def __init__(self, datatable, meta):
-        self.data = datatable
-        self.meta = meta
-
-    def info(self):
-        pass
+    temp.close()
+    return(data_coll)
 
 
 class eSet(object):
     """ A python version of bioconductor's eset using panda's dataframes
     """
-    def __init__(self):
-        pass
+    def __init__(self, datatable, meta):
+        self.data = datatable
+        self.meta = meta
 
     def exprs(self):
-        pass
+        return(self.data)
+
+def _parse_ABS_CALL(call):
+    """ Parses the ABS_CALL of microarrays
+    """
+    pass

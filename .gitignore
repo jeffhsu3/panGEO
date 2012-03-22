@@ -1,1 +1,5 @@
 *.pyc
+docs/build/
+build/
+docs/Makefile
+docs/make.bat
