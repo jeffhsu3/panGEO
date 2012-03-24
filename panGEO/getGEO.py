@@ -27,14 +27,16 @@ def _parse_meta(metalines):
     meta_info = collections.defaultdict(list)
 
     metalines = metalines.split("\n")
-    m_pre = re.compile(u'!\w*?_')
+    m_pre = re.compile(u'!\w*\s=')
     metalines = [tuple(re.sub(u'!\w*?_','', i).split(" = "))\
-                 if m_pre.search(i) for i in metalines]
+                 for i in metalines if m_pre.search(i)]
     #metainfo['accesion'] = metalines[0].split(" = ")[1]
     # Need to do this because some entries have multiple values
-    for k, v in metalines:
-        meat_info[k].append(v)
-    return(metainfo)
+    print(metalines)
+    for i in metalines:
+        print(i)
+        meta_info[i[0]].append(i[1])
+    return(meta_info)
 
 
 def getGEO(geo_id, out_file='/tmp/'):
@@ -117,6 +119,7 @@ def parseGPL(fileobj, size, chunksize = 100000):
     nlines = data.count('\n') - 2 # Last line is the footer
     del data # Maybe easy to just parse and load this?
     fileobj.seek(start)
+    '''
     data = pd.read_csv(fileobj, sep = "\t", nrows = nlines,
                        index_col = 0)
     new_index = pd.MultiIndex.from_tuples([(meta_data['sample'], i)\
@@ -124,6 +127,8 @@ def parseGPL(fileobj, size, chunksize = 100000):
                                           names = ['sample', 'info'])
     data.columns = new_index
     return((data, meta_data))
+    '''
+    pass
 
 
 def parseGSE(fname, chunksize = 100000):
@@ -166,10 +171,12 @@ def parseGSE(fname, chunksize = 100000):
             # assume all the same order?
             # This step is also very slow
             try:
-                data_coll[meta['platform']] =\
-                        pd.concat([data_coll[meta['platform']], data], axis=1)
+                print(meta['platform_id'][0])
+                data_coll[meta['platform_id'][0]] =\
+                        pd.concat([data_coll[meta['platform_id'][0]], data],
+                                  axis=1)
             except KeyError:
-                data_coll[meta['platform']] = data
+                data_coll[meta['platform_id'][0]] = data
         else: pass
 
     temp.close()
