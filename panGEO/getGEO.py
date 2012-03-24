@@ -1,4 +1,5 @@
 import urllib2, os, gzip, re, tempfile, cStringIO, StringIO, collections
+
 import pandas as pd
 
 
@@ -21,9 +22,19 @@ def _construct_geo_ftp(geo_id):
 
     return(url_header)
 
-def _parse_meta(metainfo):
-    metainfo.split("\n")
-    pass
+
+def _parse_meta(metalines):
+    meta_info = collections.defaultdict(list)
+
+    metalines = metalines.split("\n")
+    m_pre = re.compile(u'!\w*?_')
+    metalines = [tuple(re.sub(u'!\w*?_','', i).split(" = "))\
+                 if m_pre.search(i) for i in metalines]
+    #metainfo['accesion'] = metalines[0].split(" = ")[1]
+    # Need to do this because some entries have multiple values
+    for k, v in metalines:
+        meat_info[k].append(v)
+    return(metainfo)
 
 
 def getGEO(geo_id, out_file='/tmp/'):
@@ -50,21 +61,49 @@ def loadGEO(GEO_file):
 
 
 def parseGSM(fileobj, size, chunksize = 100000):
+    """ Parse GSM
+    """
+    metalines = ''
+    while True:
+        line = fileobj.readline()
+        metalines += line
+        if re.search('_table_begin', line):
+            start = fileobj.tell()
+            break
+        else: pass
+    seen = len(metalines)
+    meta_data = _parse_meta(metalines)
+    # Get the line counts to read
+    if size:
+        data = fileobj.read(size-seen)
+    else:
+        data = fileobj.read()
+
+    nlines = data.count('\n') - 2 # Last line is the footer
+    del data
+    fileobj.seek(start)
+    # Can we make this faster?
+    data = pd.read_csv(fileobj, sep = "\t", nrows = nlines,
+                       index_col = 0)
+    new_index = pd.MultiIndex.from_tuples([(meta_data['title'][0], i)\
+                                          for i in data.columns],
+                                          names = ['sample', 'info'])
+    data.columns = new_index
+    return((data, meta_data))
+
+
+
+def parseGPL(fileobj, size, chunksize = 100000):
+    """ Parses a GPL file.
+    """
     seen = 0
     first_line = fileobj.readline()
     seen += len(first_line)
     acession = first_line.strip("\n").split(" = ")[1]
     meta_data = {}
-    # This is slow
     while True:
         line = fileobj.readline()
         seen += len(line)
-        if re.search(u'\\!Sample_title', line):
-            meta_data['sample'] = line.rstrip('\n').split(" = ")[1]
-        elif '!Sample_platform_id' in line:
-            meta_data['platform'] = line.rstrip('\n').split(" = ")[1]
-        else:
-            pass
         if re.search('_table_begin', line):
             start = fileobj.tell()
             break
@@ -76,37 +115,15 @@ def parseGSM(fileobj, size, chunksize = 100000):
         data = fileobj.read()
 
     nlines = data.count('\n') - 2 # Last line is the footer
-    del data
+    del data # Maybe easy to just parse and load this?
     fileobj.seek(start)
     data = pd.read_csv(fileobj, sep = "\t", nrows = nlines,
                        index_col = 0)
     new_index = pd.MultiIndex.from_tuples([(meta_data['sample'], i)\
-                                          for i in data.columns], 
+                                          for i in data.columns],
                                           names = ['sample', 'info'])
     data.columns = new_index
     return((data, meta_data))
-
-
-
-def parseGPL(fileobj, size, chunksize = 100000):
-    seen = 0
-    first_line = fileobj.readline()
-    seen += len(first_line)
-    acession = first_line.strip("\n").split(" = ")[1]
-    meta_data = {}
-    while True:
-        line = fileobj.readline()
-        seen += len(line)
-        if re.search(u'\\!Sample_title', line):
-            meta_data['sample'] = line.rstrip('\n').split(" = ")[1]
-        elif '!Sample_platform_id' in line:
-            meta_data['platform'] = line.rstrip('\n').split(" = ")[1]
-        else:
-            pass
-        if re.search('_table_begin', line):
-            start = fileobj.tell()
-            break
-        else: pass
 
 
 def parseGSE(fname, chunksize = 100000):
@@ -168,6 +185,14 @@ class eSet(object):
 
     def exprs(self):
         return(self.data)
+
+class GSE(object):
+    """
+    """
+    def __init__(self, gsms, gpls, meta):
+        self.gsms = gsms
+        self.gpls = gpls
+        self.meta = meta
 
 def _parse_ABS_CALL(call):
     """ Parses the ABS_CALL of microarrays

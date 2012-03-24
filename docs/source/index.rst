@@ -6,8 +6,8 @@
 panGEO: Loading NCBI GEO data into pandas
 *********************************************
 
-**panGEO** is a 'Python <http://www.python.org>'__ package that loads GEO data into pandas dataframes
-for furthur analysis.  
+**panGEO** is a 'Python <http://www.python.org>'__ package that loads GEO data into a 'panda <http://pandas.pydata.org>'__ dataframe
+for analysis within python.  
 
 Contents:
 
@@ -15,4 +15,3 @@ Contents:
    :maxdepth: 2
    
    intro
-   loading data
