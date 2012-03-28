@@ -2,6 +2,8 @@ import urllib2, os, gzip, re, tempfile, cStringIO, StringIO, collections
 
 import pandas as pd
 
+import eSet
+
 
 def _construct_geo_ftp(geo_id):
     """ Construct an ftp address from the GEO ID
@@ -19,7 +21,7 @@ def _construct_geo_ftp(geo_id):
         pass
     elif geo_type == 'GDS':
         pass
-
+    print(url_header)
     return(url_header)
 
 
@@ -32,9 +34,7 @@ def _parse_meta(metalines):
                  for i in metalines if m_pre.search(i)]
     #metainfo['accesion'] = metalines[0].split(" = ")[1]
     # Need to do this because some entries have multiple values
-    print(metalines)
     for i in metalines:
-        print(i)
         meta_info[i[0]].append(i[1])
     return(meta_info)
 
@@ -48,10 +48,8 @@ def getGEO(geo_id, out_file='/tmp/'):
     all_data = {}
     out = os.path.join("/tmp", geo_id)
     open(out, 'wb').write(temp.read())
-    temp = gzip.open(out, 'rb')
-    content = temp.read()
-    temp.close()
-    parseGSE(content)
+    data = parseGSE(out)
+    return(data)
 
 
 def loadGEO(GEO_file):
@@ -63,7 +61,7 @@ def loadGEO(GEO_file):
 
 
 def parseGSM(fileobj, size, chunksize = 100000):
-    """ Parse GSM
+    """ Parse GSM.  Right now parse GSM and parse GSL are exactly the same.
     """
     metalines = ''
     while True:
@@ -82,6 +80,8 @@ def parseGSM(fileobj, size, chunksize = 100000):
         data = fileobj.read()
 
     nlines = data.count('\n') - 2 # Last line is the footer
+    # :TODO since data is already read in, probably faster to parse this and
+    # load it directly into a dataframe?
     del data
     fileobj.seek(start)
     # Can we make this faster?
@@ -94,41 +94,29 @@ def parseGSM(fileobj, size, chunksize = 100000):
     return((data, meta_data))
 
 
-
 def parseGPL(fileobj, size, chunksize = 100000):
     """ Parses a GPL file.
     """
-    seen = 0
-    first_line = fileobj.readline()
-    seen += len(first_line)
-    acession = first_line.strip("\n").split(" = ")[1]
-    meta_data = {}
+    metalines = ''
     while True:
         line = fileobj.readline()
-        seen += len(line)
+        metalines += line
         if re.search('_table_begin', line):
             start = fileobj.tell()
             break
         else: pass
+    seen = len(metalines)
+    meta_data = _parse_meta(metalines)
+
     # Get the line counts to read
     if size:
         data = fileobj.read(size-seen)
     else:
         data = fileobj.read()
 
+    meta_data = _parse_meta(metalines)
     nlines = data.count('\n') - 2 # Last line is the footer
     del data # Maybe easy to just parse and load this?
-    fileobj.seek(start)
-    '''
-    data = pd.read_csv(fileobj, sep = "\t", nrows = nlines,
-                       index_col = 0)
-    new_index = pd.MultiIndex.from_tuples([(meta_data['sample'], i)\
-                                          for i in data.columns],
-                                          names = ['sample', 'info'])
-    data.columns = new_index
-    return((data, meta_data))
-    '''
-    pass
 
 
 def parseGSE(fname, chunksize = 100000):
@@ -143,6 +131,7 @@ def parseGSE(fname, chunksize = 100000):
     data_list = collections.defaultdict(list)
     data_coll = {}
     annot_coll = {}
+    meta_coll = {}
     # Go through the file getting where the file starts
     while True:
         content = temp.read(chunksize)
@@ -154,7 +143,7 @@ def parseGSE(fname, chunksize = 100000):
         ent_all.extend(matches)
         sum_bytes += chunksize
 
-    #Read till end for the last one
+    #Assuming last entry should be read all the way to the end of the file.
     chr_to_read = [ent_all[i+1][0]-ent_all[i][0] for i\
                          in range(len(ent_all)-1)]
     chr_to_read.append(None)
@@ -164,14 +153,20 @@ def parseGSE(fname, chunksize = 100000):
         if ent_all[i][1] == '^PLATFORM':
             temp.seek(ent_all[i][0])
             annot = parseGPL(temp, chr_to_read[i])
+            try:
+                pass
+            except KeyError:
+                pass
         elif ent_all[i][1] == '^SAMPLE':
             temp.seek(ent_all[i][0])
             data, meta = parseGSM(temp, chr_to_read[i])
-            # Maybe standard doesn't require auto aligning with the index,
-            # assume all the same order?
-            # This step is also very slow
+            # :TODO meta needs to be turned into a dataframe?  Not sure since
+            # there are duplicat rows for some.  However this is annoying have
+            # to deal with them as a list.  Can't simply unlist entries that
+            # only have 1 entry since not all fields are guranteed to have one
+            # entry across all samples.
+            # :TODO refactor this
             try:
-                print(meta['platform_id'][0])
                 data_coll[meta['platform_id'][0]] =\
                         pd.concat([data_coll[meta['platform_id'][0]], data],
                                   axis=1)
@@ -180,28 +175,10 @@ def parseGSE(fname, chunksize = 100000):
         else: pass
 
     temp.close()
-    return(data_coll)
-
-
-class eSet(object):
-    """ A python version of bioconductor's eset using panda's dataframes
-    """
-    def __init__(self, datatable, meta):
-        self.data = datatable
-        self.meta = meta
-
-    def exprs(self):
-        return(self.data)
-
-class GSE(object):
-    """
-    """
-    def __init__(self, gsms, gpls, meta):
-        self.gsms = gsms
-        self.gpls = gpls
-        self.meta = meta
+    return(eSet.GSE(data_coll, annot_coll, meta_coll))
 
 def _parse_ABS_CALL(call):
-    """ Parses the ABS_CALL of microarrays
+    """ Parses the ABS_CALL of microarrays into a smaller non python object
+    field
     """
     pass
