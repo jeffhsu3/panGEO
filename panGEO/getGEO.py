@@ -32,7 +32,6 @@ def _parse_meta(metalines):
     m_pre = re.compile(u'!\w*\s=')
     metalines = [tuple(re.sub(u'!\w*?_','', i).split(" = "))\
                  for i in metalines if m_pre.search(i)]
-    #metainfo['accesion'] = metalines[0].split(" = ")[1]
     # Need to do this because some entries have multiple values
     for i in metalines:
         meta_info[i[0]].append(i[1])
@@ -50,14 +49,6 @@ def getGEO(geo_id, out_file='/tmp/'):
     open(out, 'wb').write(temp.read())
     data = parseGSE(out)
     return(data)
-
-
-def loadGEO(GEO_file):
-    """ Loads a locally downloaded GEO file
-    """
-    temp = gzip.open(GEO_file, 'rb')
-    content = temp.read()
-    return(content)
 
 
 def parseGSM(fileobj, size, chunksize = 100000):
@@ -117,6 +108,7 @@ def parseGPL(fileobj, size, chunksize = 100000):
     meta_data = _parse_meta(metalines)
     nlines = data.count('\n') - 2 # Last line is the footer
     del data # Maybe easy to just parse and load this?
+    return(meta_data)
 
 
 def parseGSE(fname, chunksize = 100000):
