@@ -1,8 +1,8 @@
+.. currentmodule:: panGEO
+
 *************
 Introduction
 *************
 
-.. currentmodule:: panGEO
-.. automethod:: parseGSE
+.. autofunction:: parseGSE
 
-.. automethod::

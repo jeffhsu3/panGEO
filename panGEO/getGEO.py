@@ -5,22 +5,25 @@ import pandas as pd
 import eSet
 
 
-def _construct_geo_ftp(geo_id):
-    """ Construct an ftp address from the GEO ID
+def _construct_geo_ftp(geo_id, amount = 'full'):
+    """ 
+    Construct an ftp address from the GEO ID
+
     """
 
     url_header = 'ftp://ftp.ncbi.nih.gov/pub/geo/DATA/'
     geo_type = geo_id[0:3]
     if geo_type == 'GSE':
-        url_header += 'SOFT/by_series/' + geo_id +\
-                '/%s_family.soft.gz' % (geo_id)
+        url_header += 'SOFT/by_series/%s/%s_family.soft.gz' % (geo_id,
+                geo_id)
     elif geo_type == 'GPL':
         #:TODO finish this
         pass
     elif geo_type == 'GSM':
+        #:TODO finish this
         pass
     elif geo_type == 'GDS':
-        pass
+        url_header += 'SOFT/GDS/%s.soft.gz' % geo_id
     print(url_header)
     return(url_header)
 
@@ -44,9 +47,9 @@ def getGEO(geo_id, out_file='/tmp/'):
     # :TODO seems terribly inefficient to save and reload the gzip.
     # see if you can refactor to use IOStream.
 
-    all_data = {}
-    out = os.path.join("/tmp", geo_id)
+    out = os.path.join(out_file, geo_id)
     open(out, 'wb').write(temp.read())
+    temp.close()
     data = parseGSE(out)
     return(data)
 
@@ -112,10 +115,16 @@ def parseGPL(fileobj, size, chunksize = 100000):
 
 
 def parseGSE(fname, chunksize = 100000):
-    """ Parses a GSE file.  GSE will often times have data from multiple
-    platforms, so the data is returned as a dictionary with keys being the
-    GPL id and the values being dataframes of all the data from one platform.
+    """ 
+    Parses a GSE file retuns an eSet.
+    
+    GSE will often times have data from multiple platforms, so the data is 
+    returned as a dictionary with keys being the GPL id and the values being 
+    dataframes of all the data in that series from that one platform.
+
+        >>> parseGSE()
     """
+    
     temp = gzip.open(fname, 'rb')
     sum_bytes = 0
     ent_all = []

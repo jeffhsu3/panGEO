@@ -90,6 +90,10 @@ class GPL(GEO_base):
 class GSM(GEO_base):
     """
     """
+    def __init__(self, gsm, meta):
+        # GSM should be a dataframe
+        self.gsm = gsm
+        self.meta = meta
 
     def test_object(self):
         pass
