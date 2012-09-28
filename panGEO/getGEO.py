@@ -6,7 +6,7 @@ import eSet
 
 
 def _construct_geo_ftp(geo_id, amount = 'full'):
-    """ 
+    """
     Construct an ftp address from the GEO ID
 
     """
@@ -42,16 +42,13 @@ def _parse_meta(metalines):
 
 
 def getGEO(geo_id, out_file='/tmp/'):
-    temp = urllib2.urlopen(_construct_geo_ftp(geo_id))
-    # :TODO this needs to not be OS specific
-    # :TODO seems terribly inefficient to save and reload the gzip.
-    # see if you can refactor to use IOStream.
-
+    url_stream = urllib2.urlopen(_construct_geo_ftp(geo_id))
+    # :TODO seems terribly inefficient to save and reload the gzip. Use
+    # streams. Refactor to use a stream.
     out = os.path.join(out_file, geo_id)
-    open(out, 'wb').write(temp.read())
-    temp.close()
-    data = parseGSE(out)
-    return(data)
+    open(out, 'wb').write(url_stream.read())
+    url_stream.close()
+    return(parseGSE(out))
 
 
 def parseGSM(fileobj, size, chunksize = 100000):
@@ -111,20 +108,27 @@ def parseGPL(fileobj, size, chunksize = 100000):
     meta_data = _parse_meta(metalines)
     nlines = data.count('\n') - 2 # Last line is the footer
     del data # Maybe easy to just parse and load this?
-    return(meta_data)
+    fileobj.seek(start)
+    gpl = pd.read_csv(fileobj, sep = "\t", nrows = nlines,
+                      index_col = 0)
+    return((gpl, meta_data))
+
+
+def parseGSE_2(ibuffer):
+    raise NotImplemented
 
 
 def parseGSE(fname, chunksize = 100000):
-    """ 
+    """
     Parses a GSE file retuns an eSet.
-    
-    GSE will often times have data from multiple platforms, so the data is 
-    returned as a dictionary with keys being the GPL id and the values being 
+
+    GSE will often times have data from multiple platforms, so the data is
+    returned as a dictionary with keys being the GPL id and the values being
     dataframes of all the data in that series from that one platform.
 
         >>> parseGSE()
     """
-    
+
     temp = gzip.open(fname, 'rb')
     sum_bytes = 0
     ent_all = []
@@ -133,7 +137,7 @@ def parseGSE(fname, chunksize = 100000):
     data_coll = {}
     annot_coll = {}
     meta_coll = {}
-    # Go through the file getting where the file starts
+    # Go through the file getting where each of the samples starts
     while True:
         content = temp.read(chunksize)
         if content == "":
@@ -144,7 +148,6 @@ def parseGSE(fname, chunksize = 100000):
         ent_all.extend(matches)
         sum_bytes += chunksize
 
-    #Assuming last entry should be read all the way to the end of the file.
     chr_to_read = [ent_all[i+1][0]-ent_all[i][0] for i\
                          in range(len(ent_all)-1)]
     chr_to_read.append(None)
@@ -153,16 +156,17 @@ def parseGSE(fname, chunksize = 100000):
     for i in range(len(ent_all)):
         if ent_all[i][1] == '^PLATFORM':
             temp.seek(ent_all[i][0])
-            annot = parseGPL(temp, chr_to_read[i])
+            annot, gpl_meta = parseGPL(temp, chr_to_read[i])
             try:
-                pass
+                annot_coll = annot
             except KeyError:
+                print('Key Error')
                 pass
         elif ent_all[i][1] == '^SAMPLE':
             temp.seek(ent_all[i][0])
             data, meta = parseGSM(temp, chr_to_read[i])
             # :TODO meta needs to be turned into a dataframe?  Not sure since
-            # there are duplicat rows for some.  However this is annoying have
+            # there are duplicate rows for some.  However this is annoying have
             # to deal with them as a list.  Can't simply unlist entries that
             # only have 1 entry since not all fields are guranteed to have one
             # entry across all samples.
@@ -177,9 +181,3 @@ def parseGSE(fname, chunksize = 100000):
 
     temp.close()
     return(eSet.GSE(data_coll, annot_coll, meta_coll))
-
-def _parse_ABS_CALL(call):
-    """ Parses the ABS_CALL of microarrays into a smaller non python object
-    field
-    """
-    pass
