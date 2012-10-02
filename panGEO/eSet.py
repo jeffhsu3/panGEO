@@ -1,3 +1,52 @@
+import pandas as pd
+from scipy.stats import scoreatpercentile 
+
+class Base_Array(pd.DataFrame):
+    """ Generic class for holding array information from arrays all of the same
+    tyep.  Subclass for specific arrays. 
+    """
+    
+    def summary(self):
+        means = self.apply(np.mean, 1)
+        quart_one = self.apply(scoreatpercentile, 1)
+        quart_three = self.apply(sco[good_probes, 0::2]eatpercentle, 1)
+        summary = pd.DataFrame({'means': means, 'quartile_one': quart_one,
+            'quartile_three': quart_three])
+        self.summary = summary
+        print(self.summary)
+
+    def histogram(self, **kwargs):
+        """ Plot a histogram of all the samples
+        """
+        hist_data = [np.histogram(self[x], **kwargs) for x in self]
+
+        for i, j in hist_data:
+            j = 0.5 * (j[1:] + j[:-1])
+            plot(j, i, '-')
+
+
+class Illumina_array(Array):
+    """ Functions specific to the Illumina platform
+    """
+
+    def detection(self, threshold = 0.05, sample_number = None):
+        """ Returns the dataframe with only rows that have significant
+        quantification assay.  Used p-detection value.  
+        """
+        platforms = GSE.keys()
+
+        if sample_number == None:
+            sample_number = self.shape[1]/4
+
+        good_probes = self.ix[:, 1::2].apply((lambda x: np.sum( x < threshold))
+                \ sample_number)
+
+        return self[good_probes, 0::2]
+
+    def summary(self):
+        means = self.ix[:,0::2].apply(np.mean, 1)
+
+
 class eSet(object):
     """
     """
@@ -70,6 +119,9 @@ class GSE(object):
         raise AttributeError("'%s' object has no attribute '%s'" %
                              (type(self).__name__, name))
     '''
+    def _get_samples(self):
+        platforms = self.gsms.keys()
+        self.samples = None
 
 
     def subset(self, platform, matrix_only = False):
